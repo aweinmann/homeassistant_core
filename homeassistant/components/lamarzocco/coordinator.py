@@ -201,8 +201,8 @@ class LaMarzoccoConfigUpdateCoordinator(LaMarzoccoUpdateCoordinator):
 
                     # Trigger last coffee update when brewing stops
                     if (
-                        self._previous_machine_state is MachineState.BREWING
-                        and current_state is not MachineState.BREWING
+                        self._previous_machine_state == MachineState.BREWING
+                        and current_state != MachineState.BREWING
                     ):
                         _LOGGER.debug(
                             "Machine stopped brewing, triggering last coffee update"
@@ -211,10 +211,16 @@ class LaMarzoccoConfigUpdateCoordinator(LaMarzoccoUpdateCoordinator):
                         last_coffee_coordinator = (
                             self.config_entry.runtime_data.last_coffee_coordinator
                         )
-                        # Schedule the refresh asynchronously
-                        self.hass.async_create_task(
-                            last_coffee_coordinator.async_request_refresh()
-                        )
+                        # Schedule the refresh asynchronously with error handling
+                        async def _refresh_last_coffee() -> None:
+                            try:
+                                await last_coffee_coordinator.async_request_refresh()
+                            except Exception:
+                                _LOGGER.exception(
+                                    "Error refreshing last coffee data after brewing"
+                                )
+
+                        self.hass.async_create_task(_refresh_last_coffee())
 
                     # Update the previous state
                     self._previous_machine_state = current_state
