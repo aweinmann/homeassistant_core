@@ -167,7 +167,7 @@
         "name": "Last shot time"
       },
       "last_shot_extraction_seconds": {
-        "name": "Last shot extraction time"
+        "name": "Last shot extraction duration"
       }
     },
     "switch": {
