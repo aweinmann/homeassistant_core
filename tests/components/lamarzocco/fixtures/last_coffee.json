@@ -1,18 +1,20 @@
 {
-  "last_coffees": [
+  "lastCoffees": [
     {
-      "time": "2025-02-10T10:30:45Z",
-      "extraction_seconds": 28.5,
-      "dose_mode": "Continuous",
-      "dose_index": "DoseA",
-      "dose_value_numerator": null
+      "time": 1742535679203,
+      "extractionSeconds": 28.5,
+      "doseMode": "Continuous",
+      "doseIndex": "Continuous",
+      "doseValue": null,
+      "doseValueNumerator": null
     },
     {
-      "time": "2025-02-10T09:15:22Z",
-      "extraction_seconds": 31.2,
-      "dose_mode": "Continuous",
-      "dose_index": "DoseA",
-      "dose_value_numerator": null
+      "time": 1742489827722,
+      "extractionSeconds": 31.2,
+      "doseMode": "Continuous",
+      "doseIndex": "Continuous",
+      "doseValue": null,
+      "doseValueNumerator": null
     }
   ]
 }
