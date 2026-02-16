@@ -38,6 +38,7 @@ from .coordinator import (
     LaMarzoccoBluetoothUpdateCoordinator,
     LaMarzoccoConfigEntry,
     LaMarzoccoConfigUpdateCoordinator,
+    LaMarzoccoLastCoffeeUpdateCoordinator,
     LaMarzoccoRuntimeData,
     LaMarzoccoScheduleUpdateCoordinator,
     LaMarzoccoSettingsUpdateCoordinator,
@@ -174,6 +175,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: LaMarzoccoConfigEntry) -
         LaMarzoccoSettingsUpdateCoordinator(hass, entry, device),
         LaMarzoccoScheduleUpdateCoordinator(hass, entry, device),
         LaMarzoccoStatisticsUpdateCoordinator(hass, entry, device),
+        LaMarzoccoLastCoffeeUpdateCoordinator(hass, entry, device),
     )
 
     if not local_mode:
@@ -182,6 +184,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: LaMarzoccoConfigEntry) -
             coordinators.settings_coordinator.async_config_entry_first_refresh(),
             coordinators.schedule_coordinator.async_config_entry_first_refresh(),
             coordinators.statistics_coordinator.async_config_entry_first_refresh(),
+            coordinators.last_coffee_coordinator.async_config_entry_first_refresh(),
         )
 
     if local_mode and not bluetooth_client:

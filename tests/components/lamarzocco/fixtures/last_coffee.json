@@ -1,0 +1,20 @@
+{
+  "lastCoffees": [
+    {
+      "time": 1742535679203,
+      "extractionSeconds": 28.5,
+      "doseMode": "Continuous",
+      "doseIndex": "Continuous",
+      "doseValue": null,
+      "doseValueNumerator": null
+    },
+    {
+      "time": 1742489827722,
+      "extractionSeconds": 31.2,
+      "doseMode": "Continuous",
+      "doseIndex": "Continuous",
+      "doseValue": null,
+      "doseValueNumerator": null
+    }
+  ]
+}

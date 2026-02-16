@@ -11,11 +11,13 @@ import logging
 from typing import Any
 
 from pylamarzocco import LaMarzoccoMachine
+from pylamarzocco.const import MachineState, WidgetType
 from pylamarzocco.exceptions import (
     AuthFail,
     BluetoothConnectionFailed,
     RequestNotSuccessful,
 )
+from pylamarzocco.models import MachineStatus
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
@@ -29,6 +31,7 @@ SCAN_INTERVAL = timedelta(seconds=60)
 SETTINGS_UPDATE_INTERVAL = timedelta(hours=8)
 SCHEDULE_UPDATE_INTERVAL = timedelta(minutes=30)
 STATISTICS_UPDATE_INTERVAL = timedelta(minutes=15)
+LAST_COFFEE_UPDATE_INTERVAL = timedelta(minutes=30)
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -40,6 +43,7 @@ class LaMarzoccoRuntimeData:
     settings_coordinator: LaMarzoccoSettingsUpdateCoordinator
     schedule_coordinator: LaMarzoccoScheduleUpdateCoordinator
     statistics_coordinator: LaMarzoccoStatisticsUpdateCoordinator
+    last_coffee_coordinator: LaMarzoccoLastCoffeeUpdateCoordinator
     bluetooth_coordinator: LaMarzoccoBluetoothUpdateCoordinator | None = None
 
 
@@ -133,11 +137,26 @@ class LaMarzoccoUpdateCoordinator(DataUpdateCoordinator[None]):
 class LaMarzoccoConfigUpdateCoordinator(LaMarzoccoUpdateCoordinator):
     """Class to handle fetching data from the La Marzocco API centrally."""
 
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: LaMarzoccoConfigEntry,
+        device: LaMarzoccoMachine,
+    ) -> None:
+        """Initialize coordinator."""
+        super().__init__(hass, entry, device)
+        self._previous_machine_state: MachineState | None = None
+
     async def _internal_async_setup(self) -> None:
         """Set up the coordinator."""
         await self.device.ensure_token_valid()
         await self.device.get_dashboard()
         _LOGGER.debug("Current status: %s", self.device.dashboard.to_dict())
+        # Initialize the previous state
+        if WidgetType.CM_MACHINE_STATUS in self.device.dashboard.config:
+            machine_status = self.device.dashboard.config[WidgetType.CM_MACHINE_STATUS]
+            if isinstance(machine_status, MachineStatus):
+                self._previous_machine_state = machine_status.status
 
     async def _internal_async_update_data(self) -> None:
         """Fetch data from API endpoint."""
@@ -173,6 +192,39 @@ class LaMarzoccoConfigUpdateCoordinator(LaMarzoccoUpdateCoordinator):
         @callback
         def update_callback(_: Any | None = None) -> None:
             _LOGGER.debug("Current status: %s", self.device.dashboard.to_dict())
+
+            # Check if machine state changed from BREWING to another state
+            if WidgetType.CM_MACHINE_STATUS in self.device.dashboard.config:
+                machine_status = self.device.dashboard.config[WidgetType.CM_MACHINE_STATUS]
+                if isinstance(machine_status, MachineStatus):
+                    current_state = machine_status.status
+
+                    # Trigger last coffee update when brewing stops
+                    if (
+                        self._previous_machine_state == MachineState.BREWING
+                        and current_state != MachineState.BREWING
+                    ):
+                        _LOGGER.debug(
+                            "Machine stopped brewing, triggering last coffee update"
+                        )
+                        # Get the last_coffee_coordinator from runtime data
+                        last_coffee_coordinator = (
+                            self.config_entry.runtime_data.last_coffee_coordinator
+                        )
+                        # Schedule the refresh asynchronously with error handling
+                        async def _refresh_last_coffee() -> None:
+                            try:
+                                await last_coffee_coordinator.async_request_refresh()
+                            except Exception:
+                                _LOGGER.exception(
+                                    "Error refreshing last coffee data after brewing"
+                                )
+
+                        self.hass.async_create_task(_refresh_last_coffee())
+
+                    # Update the previous state
+                    self._previous_machine_state = current_state
+
             self.async_set_updated_data(None)
 
         await self.device.connect_dashboard_websocket(
@@ -233,3 +285,15 @@ class LaMarzoccoBluetoothUpdateCoordinator(LaMarzoccoUpdateCoordinator):
         if self.device.websocket.connected and self.device.dashboard.connected:
             return
         await self.device.get_dashboard_from_bluetooth()
+
+
+class LaMarzoccoLastCoffeeUpdateCoordinator(LaMarzoccoUpdateCoordinator):
+    """Coordinator for La Marzocco last coffee data."""
+
+    _default_update_interval = LAST_COFFEE_UPDATE_INTERVAL
+
+    async def _internal_async_update_data(self) -> None:
+        """Fetch last coffee data from API endpoint."""
+        # Default to 7 days of coffee history
+        await self.device.get_last_coffee(days=7)
+        _LOGGER.debug("Current last coffee: %s", self.device.last_coffee.to_dict())

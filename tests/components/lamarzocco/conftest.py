@@ -11,6 +11,7 @@ from pylamarzocco.models import (
     ThingSchedulingSettings,
     ThingSettings,
     ThingStatistics,
+    LastCoffeeList,
 )
 from pylamarzocco.util import InstallationKey
 import pytest
@@ -111,6 +112,7 @@ def mock_lamarzocco(device_fixture: ModelName) -> Generator[MagicMock]:
     schedule = load_json_object_fixture("schedule.json", DOMAIN)
     settings = load_json_object_fixture("settings.json", DOMAIN)
     statistics = load_json_object_fixture("statistics.json", DOMAIN)
+    last_coffee = load_json_object_fixture("last_coffee.json", DOMAIN)
 
     with (
         patch(
@@ -125,6 +127,7 @@ def mock_lamarzocco(device_fixture: ModelName) -> Generator[MagicMock]:
         machine_mock.schedule = ThingSchedulingSettings.from_dict(schedule)
         machine_mock.settings = ThingSettings.from_dict(settings)
         machine_mock.statistics = ThingStatistics.from_dict(statistics)
+        machine_mock.last_coffee = LastCoffeeList.from_dict(last_coffee)
         machine_mock.dashboard.model_name = device_fixture
         machine_mock.to_dict.return_value = {
             "serial_number": machine_mock.serial_number,

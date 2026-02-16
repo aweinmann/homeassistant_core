@@ -11,6 +11,7 @@ from pylamarzocco.models import (
     BaseWidgetOutput,
     CoffeeAndFlushCounter,
     CoffeeBoiler,
+    LastCoffeeList,
     MachineStatus,
     SteamBoilerLevel,
     SteamBoilerTemperature,
@@ -22,7 +23,7 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import EntityCategory
+from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.typing import StateType
@@ -195,6 +196,47 @@ STATISTIC_ENTITIES: tuple[LaMarzoccoSensorEntityDescription, ...] = (
 )
 
 
+@dataclass(frozen=True, kw_only=True)
+class LaMarzoccoLastCoffeeSensorEntityDescription(
+    LaMarzoccoEntityDescription,
+    SensorEntityDescription,
+):
+    """Description of a La Marzocco last coffee sensor."""
+
+    value_fn: Callable[[LastCoffeeList], StateType | datetime | None]
+
+
+LAST_COFFEE_ENTITIES: tuple[LaMarzoccoLastCoffeeSensorEntityDescription, ...] = (
+    LaMarzoccoLastCoffeeSensorEntityDescription(
+        key="last_shot_time",
+        translation_key="last_shot_time",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        value_fn=(
+            lambda last_coffee: (
+                last_coffee.last_coffees[0].time
+                if last_coffee.last_coffees
+                else None
+            )
+        ),
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    LaMarzoccoLastCoffeeSensorEntityDescription(
+        key="last_shot_extraction_seconds",
+        translation_key="last_shot_extraction_seconds",
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        suggested_display_precision=1,
+        value_fn=(
+            lambda last_coffee: (
+                last_coffee.last_coffees[0].extraction_seconds
+                if last_coffee.last_coffees
+                else None
+            )
+        ),
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: LaMarzoccoConfigEntry,
@@ -203,6 +245,7 @@ async def async_setup_entry(
     """Set up sensor entities."""
     config_coordinator = entry.runtime_data.config_coordinator
     statistic_coordinators = entry.runtime_data.statistics_coordinator
+    last_coffee_coordinator = entry.runtime_data.last_coffee_coordinator
 
     entities = [
         LaMarzoccoSensorEntity(config_coordinator, description)
@@ -213,6 +256,11 @@ async def async_setup_entry(
         LaMarzoccoStatisticSensorEntity(statistic_coordinators, description)
         for description in STATISTIC_ENTITIES
         if description.supported_fn(statistic_coordinators)
+    )
+    entities.extend(
+        LaMarzoccoLastCoffeeSensorEntity(last_coffee_coordinator, description)
+        for description in LAST_COFFEE_ENTITIES
+        if description.supported_fn(last_coffee_coordinator)
     )
     async_add_entities(entities)
 
@@ -241,3 +289,15 @@ class LaMarzoccoStatisticSensorEntity(LaMarzoccoSensorEntity):
         return self.entity_description.value_fn(
             self.coordinator.device.statistics.widgets
         )
+
+
+class LaMarzoccoLastCoffeeSensorEntity(LaMarzoccoEntity, SensorEntity):
+    """Sensor for La Marzocco last coffee data."""
+
+    entity_description: LaMarzoccoLastCoffeeSensorEntityDescription
+    _unavailable_when_machine_off = False
+
+    @property
+    def native_value(self) -> StateType | datetime | None:
+        """Return the value of the sensor."""
+        return self.entity_description.value_fn(self.coordinator.device.last_coffee)

@@ -162,6 +162,12 @@
       "total_flushes_done": {
         "name": "Total flushes done",
         "unit_of_measurement": "flushes"
+      },
+      "last_shot_time": {
+        "name": "Last shot time"
+      },
+      "last_shot_extraction_seconds": {
+        "name": "Last shot extraction duration"
       }
     },
     "switch": {
