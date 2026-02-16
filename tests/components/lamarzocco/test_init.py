@@ -4,9 +4,9 @@ from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, PropertyMock
 
 from freezegun.api import FrozenDateTimeFactory
-from pylamarzocco.const import FirmwareType
+from pylamarzocco.const import FirmwareType, MachineState, WidgetType
 from pylamarzocco.exceptions import AuthFail, RequestNotSuccessful
-from pylamarzocco.models import WebSocketDetails
+from pylamarzocco.models import MachineStatus, WebSocketDetails
 import pytest
 from syrupy.assertion import SnapshotAssertion
 
@@ -304,3 +304,121 @@ async def test_websocket_reconnects_after_termination(
 
     # Verify websocket reconnection was attempted
     assert mock_lamarzocco.connect_dashboard_websocket.call_count == 2
+
+
+async def test_last_coffee_update_on_brewing_completion(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_lamarzocco: MagicMock,
+) -> None:
+    """Test that last coffee coordinator is updated when brewing completes."""
+
+    # Setup: Machine is initially in BREWING state
+    machine_status = MachineStatus(status=MachineState.BREWING)
+    mock_lamarzocco.dashboard.config[WidgetType.CM_MACHINE_STATUS] = machine_status
+
+    # Initialize integration
+    await async_init_integration(hass, mock_config_entry)
+
+    # Get the websocket update callback that was registered
+    assert mock_lamarzocco.connect_dashboard_websocket.called
+    update_callback = mock_lamarzocco.connect_dashboard_websocket.call_args[1][
+        "update_callback"
+    ]
+
+    # Get the last_coffee_coordinator
+    last_coffee_coordinator = (
+        mock_config_entry.runtime_data.last_coffee_coordinator
+    )
+
+    # Mock the async_request_refresh method
+    last_coffee_coordinator.async_request_refresh = AsyncMock()
+
+    # Simulate machine stopping brewing (state change to IDLE)
+    machine_status.status = MachineState.IDLE
+
+    # Call the update callback
+    update_callback()
+    await hass.async_block_till_done()
+
+    # Verify that last_coffee_coordinator.async_request_refresh was called
+    assert last_coffee_coordinator.async_request_refresh.called
+
+    # Verify it was only called once
+    assert last_coffee_coordinator.async_request_refresh.call_count == 1
+
+
+async def test_last_coffee_not_updated_when_brewing_starts(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_lamarzocco: MagicMock,
+) -> None:
+    """Test that last coffee coordinator is NOT updated when brewing starts."""
+
+    # Setup: Machine is initially in IDLE state
+    machine_status = MachineStatus(status=MachineState.IDLE)
+    mock_lamarzocco.dashboard.config[WidgetType.CM_MACHINE_STATUS] = machine_status
+
+    # Initialize integration
+    await async_init_integration(hass, mock_config_entry)
+
+    # Get the websocket update callback
+    update_callback = mock_lamarzocco.connect_dashboard_websocket.call_args[1][
+        "update_callback"
+    ]
+
+    # Get the last_coffee_coordinator
+    last_coffee_coordinator = (
+        mock_config_entry.runtime_data.last_coffee_coordinator
+    )
+
+    # Mock the async_request_refresh method
+    last_coffee_coordinator.async_request_refresh = AsyncMock()
+
+    # Simulate machine starting to brew (state change from IDLE to BREWING)
+    machine_status.status = MachineState.BREWING
+
+    # Call the update callback
+    update_callback()
+    await hass.async_block_till_done()
+
+    # Verify that last_coffee_coordinator.async_request_refresh was NOT called
+    assert not last_coffee_coordinator.async_request_refresh.called
+
+
+async def test_last_coffee_not_updated_on_other_state_changes(
+    hass: HomeAssistant,
+    mock_config_entry: MockConfigEntry,
+    mock_lamarzocco: MagicMock,
+) -> None:
+    """Test that last coffee coordinator is NOT updated on other state changes."""
+
+    # Setup: Machine is initially in IDLE state
+    machine_status = MachineStatus(status=MachineState.IDLE)
+    mock_lamarzocco.dashboard.config[WidgetType.CM_MACHINE_STATUS] = machine_status
+
+    # Initialize integration
+    await async_init_integration(hass, mock_config_entry)
+
+    # Get the websocket update callback
+    update_callback = mock_lamarzocco.connect_dashboard_websocket.call_args[1][
+        "update_callback"
+    ]
+
+    # Get the last_coffee_coordinator
+    last_coffee_coordinator = (
+        mock_config_entry.runtime_data.last_coffee_coordinator
+    )
+
+    # Mock the async_request_refresh method
+    last_coffee_coordinator.async_request_refresh = AsyncMock()
+
+    # Simulate machine changing from IDLE to STANDBY (not from BREWING)
+    machine_status.status = MachineState.STANDBY
+
+    # Call the update callback
+    update_callback()
+    await hass.async_block_till_done()
+
+    # Verify that last_coffee_coordinator.async_request_refresh was NOT called
+    assert not last_coffee_coordinator.async_request_refresh.called
