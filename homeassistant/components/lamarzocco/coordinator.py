@@ -29,6 +29,7 @@ SCAN_INTERVAL = timedelta(seconds=60)
 SETTINGS_UPDATE_INTERVAL = timedelta(hours=8)
 SCHEDULE_UPDATE_INTERVAL = timedelta(minutes=30)
 STATISTICS_UPDATE_INTERVAL = timedelta(minutes=15)
+LAST_COFFEE_UPDATE_INTERVAL = timedelta(minutes=30)
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -40,6 +41,7 @@ class LaMarzoccoRuntimeData:
     settings_coordinator: LaMarzoccoSettingsUpdateCoordinator
     schedule_coordinator: LaMarzoccoScheduleUpdateCoordinator
     statistics_coordinator: LaMarzoccoStatisticsUpdateCoordinator
+    last_coffee_coordinator: LaMarzoccoLastCoffeeUpdateCoordinator
     bluetooth_coordinator: LaMarzoccoBluetoothUpdateCoordinator | None = None
 
 
@@ -233,3 +235,15 @@ class LaMarzoccoBluetoothUpdateCoordinator(LaMarzoccoUpdateCoordinator):
         if self.device.websocket.connected and self.device.dashboard.connected:
             return
         await self.device.get_dashboard_from_bluetooth()
+
+
+class LaMarzoccoLastCoffeeUpdateCoordinator(LaMarzoccoUpdateCoordinator):
+    """Coordinator for La Marzocco last coffee data."""
+
+    _default_update_interval = LAST_COFFEE_UPDATE_INTERVAL
+
+    async def _internal_async_update_data(self) -> None:
+        """Fetch last coffee data from API endpoint."""
+        # Default to 7 days of coffee history
+        await self.device.get_last_coffee(days=7)
+        _LOGGER.debug("Current last coffee: %s", self.device.last_coffee.to_dict())
